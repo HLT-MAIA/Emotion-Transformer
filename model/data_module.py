@@ -14,18 +14,18 @@ import json
 import multiprocessing
 import os
 from argparse import Namespace
-import pandas as pd
-from typing import Dict, List
-from tqdm import tqdm
 from collections import defaultdict
+from typing import Dict, List
 
 import click
+import pandas as pd
+import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-
-import pytorch_lightning as pl
-from model.tokenizer import Tokenizer
 from torchnlp.download import download_file_maybe_extract
+from tqdm import tqdm
+
+from model.tokenizer import Tokenizer
 
 PADDED_INPUTS = ["input_ids"]
 MODEL_INPUTS = ["input_ids", "input_lengths", "labels"]
@@ -49,9 +49,13 @@ class DataModule(pl.LightningDataModule):
         cls,
         tokenizer: Tokenizer,
         sentence: List[int],
-        label_encoder: Dict[str, int],
+        label_encoder: Dict[str, int] = None,
         labels: List[int] = None,
+        prepare_labels: bool = True,
     ) -> Dict[str, List[int]]:
+        if not prepare_labels:
+            return {"input_ids": sentence, "input_lengths": len(sentence)}
+
         label_encoding = [0] * len(label_encoder)
         for l in labels:
             label_encoding[l] = 1
@@ -82,7 +86,7 @@ class DataModule(pl.LightningDataModule):
         """
         if not os.path.isdir(dataset_path):
             click.secho(f"{dataset_path} not found!", fg="red")
-        
+
         dataset_hash = (
             int(hashlib.sha256(dataset_path.encode("utf-8")).hexdigest(), 16) % 10 ** 8
         )
@@ -99,24 +103,27 @@ class DataModule(pl.LightningDataModule):
         if os.path.isfile(dataset_cache):
             click.secho(f"Loading tokenized dataset from cache: {dataset_cache}.")
             return torch.load(dataset_cache)
-        
+
         dataset_path += "" if dataset_path.endswith("/") else "/"
         dataset = {
-            "train": pd.read_csv(dataset_path+"train.tsv", sep="\t").to_dict("records"),
-            "valid": pd.read_csv(dataset_path+"valid.tsv", sep="\t").to_dict("records")
+            "train": pd.read_csv(dataset_path + "train.tsv", sep="\t").to_dict(
+                "records"
+            ),
+            "valid": pd.read_csv(dataset_path + "valid.tsv", sep="\t").to_dict(
+                "records"
+            ),
         }
-        # Read Labels 
-        with open(dataset_path+"labels.txt", "r") as fp:
+        # Read Labels
+        with open(dataset_path + "labels.txt", "r") as fp:
             labels = [line.strip() for line in fp.readlines()]
             label_encoder = {labels[i]: i for i in range(len(labels))}
-        
+
         dataset["label_encoder"] = label_encoder
         # Tokenize
         dataset["train"] = self._tokenize(dataset["train"])
         dataset["valid"] = self._tokenize(dataset["valid"])
         torch.save(dataset, dataset_cache)
         return dataset
-
 
     @classmethod
     def pad_dataset(
@@ -133,10 +140,7 @@ class DataModule(pl.LightningDataModule):
         """
         max_l = max(len(x) for x in dataset["input_ids"])
         for name in padded_inputs:
-            dataset[name] = [
-                x + [padding] * (max_l - len(x))
-                for x in dataset[name]
-            ]
+            dataset[name] = [x + [padding] * (max_l - len(x)) for x in dataset[name]]
         return dataset
 
     def prepare_data(self):
@@ -152,10 +156,12 @@ class DataModule(pl.LightningDataModule):
         datasets = {"train": defaultdict(list), "valid": defaultdict(list)}
         for dataset_name, dataset in data.items():
             for sample in dataset:
-                instance = self.build_input(self.tokenizer, sample["text"], label_encoder, sample["label"])
+                instance = self.build_input(
+                    self.tokenizer, sample["text"], label_encoder, sample["label"]
+                )
                 for input_name, input_array in instance.items():
                     datasets[dataset_name][input_name].append(input_array)
-        
+
         click.secho("Padding inputs and building tensors.", fg="yellow")
         tensor_datasets = {"train": [], "valid": []}
         for dataset_name, dataset in datasets.items():
@@ -166,7 +172,7 @@ class DataModule(pl.LightningDataModule):
                 else:
                     tensor = torch.tensor(dataset[input_name])
                 tensor_datasets[dataset_name].append(tensor)
-        
+
         self.train_dataset = TensorDataset(*tensor_datasets["train"])
         self.valid_dataset = TensorDataset(*tensor_datasets["valid"])
         click.secho(
@@ -181,7 +187,7 @@ class DataModule(pl.LightningDataModule):
             ),
             fg="yellow",
         )
-        
+
     def train_dataloader(self) -> DataLoader:
         """ Function that loads the train set. """
         return DataLoader(

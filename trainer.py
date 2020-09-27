@@ -15,6 +15,7 @@ from pytorch_lightning.callbacks import (
     ModelCheckpoint,
 )
 from pytorch_lightning.loggers import TensorBoardLogger
+
 from utils import Config
 
 
@@ -67,9 +68,9 @@ class TrainerConfig(Config):
     # Model Checkpoint & Early Stopping
     early_stopping: bool = True
     save_top_k: int = 1
-    monitor: str = "val_loss"
+    monitor: str = "macro-f1"
     save_weights_only: bool = False
-    metric_mode: str = "min"
+    metric_mode: str = "max"
     min_delta: float = 0.0
     patience: int = 1
     accumulate_grad_batches: int = 1
@@ -145,5 +146,6 @@ def build_trainer(hparams: Namespace) -> pl.Trainer:
         precision=hparams.precision,
         weights_summary="top",
         profiler=hparams.profiler,
+        num_sanity_val_steps=5,
     )
     return trainer

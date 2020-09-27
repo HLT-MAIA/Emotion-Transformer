@@ -5,9 +5,12 @@ Text Tokenizer
     Wrapper around GPT2 tokenizer.
 """
 import torch
+from torchnlp.encoders.text.text_encoder import TextEncoder
 from transformers import AutoTokenizer
 
-from torchnlp.encoders.text.text_encoder import TextEncoder
+
+# Tokens used to anonymize names and religions
+SPECIAL_TOKENS = ["[NAME]", "[RELIGION]"]
 
 
 class Tokenizer(TextEncoder):
@@ -19,12 +22,14 @@ class Tokenizer(TextEncoder):
     def __init__(self, pretrained_model) -> None:
         self.enforce_reversible = False
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
-        
+        orig_vocab = len(self.tokenizer.encoder)
+        num_added_tokens = self.tokenizer.add_special_tokens(SPECIAL_TOKENS)
+        self.vocab_size = orig_vocab + num_added_tokens
+
         self.pad_index = self.tokenizer.pad_token_id
         self.eos_index = self.tokenizer.eos_token_id
         self.bos_index = self.tokenizer.eos_token_id
         self.vocab = self.tokenizer.get_vocab()
-        self.vocab_size = len(self.vocab)
 
     def encode(self, sequence: str) -> torch.Tensor:
         """Encodes a 'sequence'.

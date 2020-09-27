@@ -3,7 +3,7 @@ seed: 12                                  # Training seed set everywhere
 verbose: False                            # Verbosity level
 
 # ----------------------------- Early Stopping ----------------------------------------------------
-monitor: val_macro-F1                          # Metric to monitor during training
+monitor: macro-f1                          # Metric to monitor during training
 min_delta: 0.0                            # Sensitivity to the metric.
 patience: 3                               # Number of epochs without improvement before stopping training    
 metric_mode: max                          # 'min' or 'max' depending if we wish to maximize or minimize the metric
@@ -19,7 +19,7 @@ deterministic: True                       # if true enables cudnn.deterministic.
 overfit_batches: 0.0                      # DEGUB: Uses this much data of the training set. If nonzero, will use the same training set for validation and testing.
 accumulate_grad_batches: 2                # Gradient accumulation steps
 min_epochs: 1                             # Min number of epochs
-max_epochs: 5                             # Max number of epochs
+max_epochs: 8                             # Max number of epochs
 # limit_train_batches: 0.4                # To train with a lower percentage of the training data you can use this flag
 # limit_val_batches: 500                  # Same as the previous flag but for validation. 
 # val_check_interval: 0.25                # How often within one training epoch to check the validation set. Can specify as float or int.
@@ -34,8 +34,8 @@ batch_size: 8                             # Batche size used during training.
 
 # -------------------------------- Transformer Fine-tuning -----------------------------------------------
 nr_frozen_epochs: 1
-encoder_learning_rate: 3.25e-5                    
-learning_rate: 6.25e-5
+encoder_learning_rate: 1.0e-5                    
+learning_rate: 5.0e-5
 layerwise_decay: 0.95                 
 
     

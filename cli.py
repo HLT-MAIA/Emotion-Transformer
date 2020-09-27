@@ -13,11 +13,11 @@ import logging
 import click
 import torch
 import yaml
+from pytorch_lightning import seed_everything
 from tqdm import tqdm
 
 from model.data_module import DataModule
 from model.emotion_transformer import EmotionTransformer
-from pytorch_lightning import seed_everything
 from trainer import TrainerConfig, build_trainer
 
 
@@ -59,7 +59,15 @@ def interact(experiment: str) -> None:
     """Interactive mode command where we can have a conversation with a trained model
     that impersonates a Vegan that likes cooking and radical activities such as sky-diving.
     """
-    pass
+    model = EmotionTransformer.from_experiment(experiment)
+    while 1:
+        print("Please write a sentence or quit to exit the interactive shell:")
+        # Get input sentence
+        input_sentence = input("> ")
+        if input_sentence == "q" or input_sentence == "quit":
+            break
+        prediction = model.predict(samples=[input_sentence])
+        print(json.dumps(prediction[0], indent=3))
 
 
 @cli.command(name="test")
@@ -104,6 +112,7 @@ def test(
     answers and produce replies.
     """
     pass
+
 
 if __name__ == "__main__":
     cli()
