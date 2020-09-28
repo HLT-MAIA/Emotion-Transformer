@@ -1,5 +1,7 @@
 # Emotion-Transformer
-Emotion Detection with Transformer models 😃😡😱😊!
+Emotion Detection with Transformer models 😃😡😱😊
+
+To test our model capacity to predict emotions we use the [GoEmotions Corpus](https://www.aclweb.org/anthology/2020.acl-main.372.pdf). This corpus consists of 58k reddit comments annotated with 28 different emotions.
 
 # Model Architecture
 
@@ -44,3 +46,25 @@ Fun command where we can interact with with a trained model.
 ```bash
 python cli.py interact --experiment experiments/{experiment_id}/
 ```
+
+## Testing:
+After training we can test the model against the testset by running.
+
+```bash
+python cli.py test --experiment experiments/{experiment_id}/
+```
+
+This will compute the precision, recall and F1 for each label and the macro-average results.
+
+## Results:
+
+### Ekman Emotion
+
+| Model | Macro-Precision | Macro-Recall | Macro-F1 |
+| :---: | :---: | :---: | :---: |
+| biLSTM [Reported](https://arxiv.org/pdf/2005.00547.pdf) | - | - | 0.53 | 
+| BERT-base [Reported](https://arxiv.org/pdf/2005.00547.pdf) | 0.59 | 0.69 | 0.64 |
+| Mini-BERT | 0.43 | 0.69 | 0.51 |
+| RoBERTa-base | 0.582 | 0.688 | 0.624 |
+
+**Note:** The results reported were achieved with default parameters. With some search over hyper-parameters better results can be achieved.
