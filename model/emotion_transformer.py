@@ -23,7 +23,7 @@ from transformers import AdamW, AutoModel
 
 from model.data_module import DataModule
 from model.tokenizer import Tokenizer
-from model.utils import mask_fill, average_pooling, max_pooling
+from model.utils import average_pooling, mask_fill, max_pooling
 from utils import Config
 
 EKMAN = ["anger", "disgust", "fear", "joy", "neutral", "sadness", "surprise"]

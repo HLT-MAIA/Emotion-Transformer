@@ -29,12 +29,13 @@ max_epochs: 8                             # Max number of epochs
 
 # --------------------------------- Dataset -------------------------------------------------------
 pretrained_model: roberta-base            # to run MiniBERT set this flag to: google/bert_uncased_L-2_H-128_A-2
-dataset_path: data/ekman/         
-batch_size: 8                            # Batche size used during training.
+dataset_path: data/ekman/                 # Options: data/ekman/ or data/goemotions/
+labels: ekman                             # Options: ekman or goemotions
+batch_size: 8                             # Batche size used during training.
 
 # -------------------------------- Transformer Fine-tuning -----------------------------------------------
-pooling: avg
-nr_frozen_epochs: 1
-encoder_learning_rate: 1.0e-5
-learning_rate: 5.0e-5
-layerwise_decay: 0.95
+pooling: avg                              # We have several pooling strategies available: [avg, max, cls, cls+avg]
+nr_frozen_epochs: 1                       # Number of epochs where the encoder model is frozen (can also be a float between 0 and 1).
+encoder_learning_rate: 1.0e-5             # Learning rate to be used for the encoder parameters.
+learning_rate: 5.0e-5                     # Learning rate to be used on the classification head.
+layerwise_decay: 0.95                     # Learning rate dacay for the encoder layers.

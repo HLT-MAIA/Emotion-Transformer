@@ -8,7 +8,6 @@ import torch
 from torchnlp.encoders.text.text_encoder import TextEncoder
 from transformers import AutoTokenizer
 
-
 # Tokens used to anonymize names and religions
 ATTR_TO_SPECIAL_TOKEN = {
     "additional_special_tokens": ["[NAME]", "[RELIGION]"],
