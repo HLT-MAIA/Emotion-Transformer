@@ -28,15 +28,13 @@ max_epochs: 8                             # Max number of epochs
 # resume_from_checkpoint: checkpoint.ckpt # To resume training from a specific checkpoint pass in the path here.
 
 # --------------------------------- Dataset -------------------------------------------------------
-pretrained_model: roberta-base
+pretrained_model: roberta-base            # to run MiniBERT set this flag to: google/bert_uncased_L-2_H-128_A-2
 dataset_path: data/ekman/         
-batch_size: 8                             # Batche size used during training.
+batch_size: 8                            # Batche size used during training.
 
 # -------------------------------- Transformer Fine-tuning -----------------------------------------------
+pooling: avg
 nr_frozen_epochs: 1
-encoder_learning_rate: 1.0e-5                    
+encoder_learning_rate: 1.0e-5
 learning_rate: 5.0e-5
-layerwise_decay: 0.95                 
-
-    
-    
+layerwise_decay: 0.95

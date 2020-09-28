@@ -92,6 +92,7 @@ def test(
     trainer = pl.Trainer(
         gpus=1 if torch.cuda.is_available() else 0,
         deterministic=True,
+        logger=False
     )
 
     trainer.test(model, test_dataloaders=data.test_dataloader())
