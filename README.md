@@ -65,6 +65,6 @@ This will compute the precision, recall and F1 for each label and the macro-aver
 | biLSTM [Reported](https://arxiv.org/pdf/2005.00547.pdf) | - | - | 0.53 | 
 | BERT-base [Reported](https://arxiv.org/pdf/2005.00547.pdf) | 0.59 | 0.69 | 0.64 |
 | Mini-BERT | 0.43 | 0.69 | 0.51 |
-| RoBERTa-base | 0.582 | 0.688 | 0.624 |
+| RoBERTa-base | 0.58 | 0.69 | 0.62 |
 
 **Note:** The results reported were achieved with default parameters. With some search over hyper-parameters better results can be achieved.
