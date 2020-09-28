@@ -1,6 +1,37 @@
 import torch
 
 
+def average_pooling(
+    tokens: torch.Tensor,
+    embeddings: torch.Tensor,
+    mask: torch.Tensor,
+    padding_index: int,
+) -> torch.Tensor:
+    """Average pooling function.
+
+    :param tokens: Word ids [batch_size x seq_length]
+    :param embeddings: Word embeddings [batch_size x seq_length x hidden_size]
+    :param mask: Padding mask [batch_size x seq_length]
+    :param padding_index: Padding value.
+    """
+    wordemb = mask_fill(0.0, tokens, embeddings, padding_index)
+    sentemb = torch.sum(wordemb, 1)
+    sum_mask = mask.unsqueeze(-1).expand(embeddings.size()).float().sum(1)
+    return sentemb / sum_mask
+
+
+def max_pooling(
+    tokens: torch.Tensor, embeddings: torch.Tensor, padding_index: int
+) -> torch.Tensor:
+    """Max pooling function.
+
+    :param tokens: Word ids [batch_size x seq_length]
+    :param embeddings: Word embeddings [batch_size x seq_length x hidden_size]
+    :param padding_index: Padding value.
+    """
+    return mask_fill(float("-inf"), tokens, embeddings, padding_index).max(dim=1)[0]
+
+
 def mask_fill(
     fill_value: float,
     tokens: torch.tensor,

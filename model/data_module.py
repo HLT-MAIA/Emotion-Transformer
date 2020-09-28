@@ -112,6 +112,7 @@ class DataModule(pl.LightningDataModule):
             "valid": pd.read_csv(dataset_path + "valid.tsv", sep="\t").to_dict(
                 "records"
             ),
+            "test": pd.read_csv(dataset_path + "test.tsv", sep="\t").to_dict("records"),
         }
         # Read Labels
         with open(dataset_path + "labels.txt", "r") as fp:
@@ -122,6 +123,7 @@ class DataModule(pl.LightningDataModule):
         # Tokenize
         dataset["train"] = self._tokenize(dataset["train"])
         dataset["valid"] = self._tokenize(dataset["valid"])
+        dataset["test"] = self._tokenize(dataset["test"])
         torch.save(dataset, dataset_cache)
         return dataset
 
@@ -153,7 +155,11 @@ class DataModule(pl.LightningDataModule):
         del data["label_encoder"]
 
         click.secho("Building inputs and labels.", fg="yellow")
-        datasets = {"train": defaultdict(list), "valid": defaultdict(list)}
+        datasets = {
+            "train": defaultdict(list),
+            "valid": defaultdict(list),
+            "test": defaultdict(list),
+        }
         for dataset_name, dataset in data.items():
             for sample in dataset:
                 instance = self.build_input(
@@ -163,7 +169,7 @@ class DataModule(pl.LightningDataModule):
                     datasets[dataset_name][input_name].append(input_array)
 
         click.secho("Padding inputs and building tensors.", fg="yellow")
-        tensor_datasets = {"train": [], "valid": []}
+        tensor_datasets = {"train": [], "valid": [], "test": []}
         for dataset_name, dataset in datasets.items():
             dataset = self.pad_dataset(dataset, padding=self.tokenizer.pad_index)
             for input_name in MODEL_INPUTS:
@@ -175,6 +181,7 @@ class DataModule(pl.LightningDataModule):
 
         self.train_dataset = TensorDataset(*tensor_datasets["train"])
         self.valid_dataset = TensorDataset(*tensor_datasets["valid"])
+        self.test_dataset = TensorDataset(*tensor_datasets["test"])
         click.secho(
             "Train dataset (Batch, Candidates, Seq length): {}".format(
                 self.train_dataset.tensors[0].shape
@@ -184,6 +191,12 @@ class DataModule(pl.LightningDataModule):
         click.secho(
             "Valid dataset (Batch, Candidates, Seq length): {}".format(
                 self.valid_dataset.tensors[0].shape
+            ),
+            fg="yellow",
+        )
+        click.secho(
+            "Test dataset (Batch, Candidates, Seq length): {}".format(
+                self.test_dataset.tensors[0].shape
             ),
             fg="yellow",
         )
@@ -201,6 +214,15 @@ class DataModule(pl.LightningDataModule):
         """ Function that loads the validation set. """
         return DataLoader(
             self.valid_dataset,
+            batch_size=self.hparams.batch_size,
+            shuffle=False,
+            num_workers=multiprocessing.cpu_count(),
+        )
+
+    def test_dataloader(self) -> DataLoader:
+        """ Function that loads the validation set. """
+        return DataLoader(
+            self.test_dataset,
             batch_size=self.hparams.batch_size,
             shuffle=False,
             num_workers=multiprocessing.cpu_count(),

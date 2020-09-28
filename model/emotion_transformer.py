@@ -23,7 +23,7 @@ from transformers import AdamW, AutoModel
 
 from model.data_module import DataModule
 from model.tokenizer import Tokenizer
-from model.utils import mask_fill
+from model.utils import mask_fill, average_pooling, max_pooling
 from utils import Config
 
 EKMAN = ["anger", "disgust", "fear", "joy", "neutral", "sadness", "surprise"]
@@ -70,13 +70,25 @@ class EmotionTransformer(pl.LightningModule):
     class ModelConfig(Config):
         """The ModelConfig class is used to define Model settings.
 
+        ------------------ Architecture --------------------- 
         :param pretrained_model: Pretrained Transformer model to be used.
+        :param pooling: Pooling method for extracting sentence embeddings 
+            (options: cls, avg, max, cls+avg)
+        
+        ----------------- Tranfer Learning --------------------- 
+        :param nr_frozen_epochs: number of epochs where the `encoder` model is frozen.
+        :param encoder_learning_rate: Learning rate to be used to fine-tune parameters from the `encoder`.
         :param learning_rate: Learning Rate used during training.
+        :param layerwise_decay: Learning rate decay for to be applied to the encoder layers.
+
+        ----------------------- Data --------------------- 
         :param dataset_path: Path to a json file containing our data.
+        :param labels: Label set (options: `ekman`, `goemotions`)
         :param batch_size: Batch Size used during training.
         """
 
         pretrained_model: str = "roberta-base"
+        pooling: str = "avg"
 
         # Optimizer
         nr_frozen_epochs: int = 1
@@ -89,7 +101,7 @@ class EmotionTransformer(pl.LightningModule):
         labels: str = "ekman"
 
         # Training details
-        batch_size: int = 2
+        batch_size: int = 8
 
     def __init__(self, hparams: Namespace):
         super().__init__()
@@ -135,8 +147,12 @@ class EmotionTransformer(pl.LightningModule):
             param.requires_grad = False
         self._frozen = True
 
-    def layerwise_lr(self, lr: float, decay: float):
-        """
+    def layerwise_lr(self, lr: float, decay: float) -> list:
+        """ Separates layer parameters and sets the corresponding learning rate to each layer.
+
+        :param lr: Initial Learning rate.
+        :param decay: Decay value.
+
         :return: List with grouped model parameters with layer-wise decaying learning rate
         """
         opt_parameters = [
@@ -153,7 +169,8 @@ class EmotionTransformer(pl.LightningModule):
             for l in range(self.num_layers - 1)
         ]
         return opt_parameters
-
+    
+    # Pytorch Lightning Method
     def configure_optimizers(self):
         layer_parameters = self.layerwise_lr(
             self.hparams.encoder_learning_rate, self.hparams.layerwise_decay
@@ -188,29 +205,49 @@ class EmotionTransformer(pl.LightningModule):
         # Run model.
         word_embeddings = self.transformer(input_ids, mask)[0]
 
-        # Average Pooling
-        word_embeddings = mask_fill(
-            0.0, input_ids, word_embeddings, self.tokenizer.pad_index
-        )
-        sentemb = torch.sum(word_embeddings, 1)
-        sum_mask = mask.unsqueeze(-1).expand(word_embeddings.size()).float().sum(1)
-        sentemb = sentemb / sum_mask
+        # Pooling Layer
+        sentemb = self.apply_pooling(input_ids, word_embeddings, mask)
 
         # Classify
         return self.classification_head(sentemb)
 
+    def apply_pooling(
+        self, tokens: torch.Tensor, embeddings: torch.Tensor, mask: torch.Tensor
+    ) -> torch.Tensor:
+        """ Gets a sentence embedding by applying a pooling technique to the word-level embeddings.
+        
+        :param tokens: Tokenized sentences [batch x seq_length].
+        :param embeddings: Word embeddings [batch x seq_length x hidden_size].
+        :param mask: Mask that indicates padding tokens [batch x seq_length].
+
+        :return: Sentence embeddings [batch x hidden_size].
+        """
+        if self.hparams.pooling == "max":
+            sentemb = max_pooling(tokens, embeddings, self.tokenizer.pad_index)
+
+        elif self.hparams.pooling == "avg":
+            sentemb = average_pooling(
+                tokens, embeddings, mask, self.tokenizer.pad_index
+            )
+
+        elif self.hparams.pooling == "cls":
+            sentemb = embeddings[:, 0, :]
+
+        elif self.hparams.pooling == "cls+avg":
+            cls_sentemb = embeddings[:, 0, :]
+            avg_sentemb = average_pooling(
+                tokens, embeddings, mask, self.tokenizer.pad_index
+            )
+            sentemb = torch.cat((cls_sentemb, avg_sentemb), dim=1)
+        else:
+            raise Exception("Invalid pooling technique.")
+
+        return sentemb
+
+    # Pytorch Lightning Method
     def training_step(
         self, batch: Tuple[torch.Tensor], batch_nb: int, *args, **kwargs
     ) -> Dict[str, torch.Tensor]:
-        """
-        Runs one training step. This usually consists in the forward function followed
-            by the loss function.
-
-        :param batch: The output of your dataloader.
-        :param batch_nb: Integer displaying which batch this is
-
-        :return: dictionary containing the loss and the metrics to be added to the lightning logger.
-        """
         input_ids, input_lengths, labels = batch
         logits = self.forward(input_ids, input_lengths)
         loss_value = self.loss(logits, labels)
@@ -226,13 +263,10 @@ class EmotionTransformer(pl.LightningModule):
         # can also return just a scalar instead of a dict (return loss_val)
         return {"loss": loss_value, "log": {"train_loss": loss_value}}
 
+    # Pytorch Lightning Method
     def validation_step(
         self, batch: Tuple[torch.Tensor], batch_nb: int, *args, **kwargs
     ) -> Dict[str, torch.Tensor]:
-        """Similar to the training step but with the model in eval mode.
-
-        :return: dictionary passed to the validation_end function.
-        """
         input_ids, input_lengths, labels = batch
         logits = self.forward(input_ids, input_lengths)
         loss_value = self.loss(logits, labels)
@@ -245,17 +279,12 @@ class EmotionTransformer(pl.LightningModule):
 
         return {"val_loss": loss_value, "predictions": predictions, "labels": labels}
 
+    # Pytorch Lightning Method
     def validation_epoch_end(
         self, outputs: List[Dict[str, torch.Tensor]]
     ) -> Dict[str, torch.Tensor]:
-        """Function that takes as input a list of dictionaries returned by the validation_step
-        function and measures the model performance accross the entire validation set.
-
-        :return: Dictionary with metrics to be added to the lightning logger.
-        """
         predictions = torch.cat([o["predictions"] for o in outputs], dim=0)
         labels = torch.cat([o["labels"] for o in outputs], dim=0)
-        loss_value = torch.stack([o["val_loss"] for o in outputs]).mean()
 
         # Computes Precision Recall and F1 for all classes
         precision_scores, recall_scores, f1_scores = [], [], []
@@ -284,9 +313,58 @@ class EmotionTransformer(pl.LightningModule):
         return {
             "progress_bar": metrics,
             "log": metrics,
+        }
+
+    # Pytorch Lightning Method
+    def test_step(
+        self, batch: Tuple[torch.Tensor], batch_nb: int, *args, **kwargs
+    ) -> Dict[str, torch.Tensor]:
+        """ Same as validation_step. """
+        return self.validation_step(batch, batch_nb)
+
+    # Pytorch Lightning Method
+    def test_epoch_end(
+        self, outputs: List[Dict[str, torch.Tensor]]
+    ) -> Dict[str, float]:
+        """ Similar to the validation_step_end but computes precision, recall, f1 for each label."""
+        predictions = torch.cat([o["predictions"] for o in outputs], dim=0)
+        labels = torch.cat([o["labels"] for o in outputs], dim=0)
+        loss_value = torch.stack([o["val_loss"] for o in outputs]).mean()
+
+        # Computes Precision Recall and F1 for all classes
+        precision_scores, recall_scores, f1_scores = [], [], []
+        for _, index in self.label_encoder.items():
+            y_hat = predictions[:, index].cpu().numpy()
+            y = labels[:, index].cpu().numpy()
+            precision = precision_score(y_hat, y, zero_division=0)
+            recall = recall_score(y_hat, y, zero_division=0)
+            f1 = (
+                0
+                if (precision + recall) == 0
+                else (2 * (precision * recall) / (precision + recall))
+            )
+            precision_scores.append(precision)
+            recall_scores.append(recall)
+            f1_scores.append(f1)
+
+        # We will only log the macro-averaged metrics:
+        metrics = {
+            "macro-precision": sum(precision_scores) / len(precision_scores),
+            "macro-recall": sum(recall_scores) / len(recall_scores),
+            "macro-f1": sum(f1_scores) / len(f1_scores),
+        }
+        for label, i in self.label_encoder.items():
+            metrics[label + "-precision"] = precision_scores[i]
+            metrics[label + "-recall"] = recall_scores[i]
+            metrics[label + "-f1"] = f1_scores[i]
+
+        return {
+            "progress_bar": metrics,
+            "log": metrics,
             "val_loss": loss_value,
         }
 
+    # Pytorch Lightning Method
     def on_epoch_end(self):
         """ Pytorch lightning hook """
         if self.current_epoch + 1 >= self.nr_frozen_epochs:
@@ -316,7 +394,7 @@ class EmotionTransformer(pl.LightningModule):
         return model
 
     def predict(self, samples: List[str]) -> Dict[str, Any]:
-        """Predict function.
+        """ Predict function.
 
         :param samples: list with the texts we want to classify.
 

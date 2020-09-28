@@ -11,6 +11,7 @@ import json
 import logging
 
 import click
+import pytorch_lightning as pl
 import torch
 import yaml
 from pytorch_lightning import seed_everything
@@ -77,41 +78,23 @@ def interact(experiment: str) -> None:
     required=True,
     help="Path to the experiment folder containing the checkpoint we want to interact with.",
 )
-@click.option(
-    "--test_set",
-    type=click.Path(exists=True),
-    required=True,
-    help="Path to the json file containing the testset.",
-)
-@click.option(
-    "--cuda/--cpu",
-    default=True,
-    help="Flag that either runs inference on cuda or in cpu.",
-    show_default=True,
-)
-@click.option(
-    "--seed",
-    default=12,
-    help="Seed value used during inference. This influences results only when using sampling.",
-    type=int,
-)
-@click.option(
-    "--to_json",
-    default=False,
-    help="Creates and exports model predictions to a JSON file.",
-    show_default=True,
-)
 def test(
     experiment: str,
-    test_set: str,
-    cuda: bool,
-    seed: int,
-    to_json: str,
 ) -> None:
     """Testing function where a trained model is tested in its ability to rank candidate
     answers and produce replies.
     """
-    pass
+    model = EmotionTransformer.from_experiment(experiment)
+    data = DataModule(model.hparams, model.tokenizer)
+    data.prepare_data()
+
+    # Build a very simple trainer
+    trainer = pl.Trainer(
+        gpus=1 if torch.cuda.is_available() else 0,
+        deterministic=True,
+    )
+
+    trainer.test(model, test_dataloaders=data.test_dataloader())
 
 
 if __name__ == "__main__":
