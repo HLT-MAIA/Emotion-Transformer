@@ -1,7 +1,14 @@
 # Emotion-Transformer
-Emotion Detection with Transformer models
+Emotion Detection with Transformer models 😃😡😱😊!
 
-## Install:
+# Model Architecture
+
+<div style="text-align:center"><img src="resources/transformer.png" alt="architecture"></div>
+
+Our model is built on top of a pretrained Transformer model such as RoBERTa. To get a sentence representation we apply a pooling technique (average, max or CLS) and pass that representation to a classification head that produces an independent score for each label.
+
+
+# Install
 
 ```bash
 virtualenv -p python3.6 emot-env

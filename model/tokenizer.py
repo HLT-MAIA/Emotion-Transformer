@@ -10,7 +10,9 @@ from transformers import AutoTokenizer
 
 
 # Tokens used to anonymize names and religions
-SPECIAL_TOKENS = ["[NAME]", "[RELIGION]"]
+ATTR_TO_SPECIAL_TOKEN = {
+    "additional_special_tokens": ["[NAME]", "[RELIGION]"],
+}
 
 
 class Tokenizer(TextEncoder):
@@ -23,7 +25,7 @@ class Tokenizer(TextEncoder):
         self.enforce_reversible = False
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
         orig_vocab = len(self.tokenizer.encoder)
-        num_added_tokens = self.tokenizer.add_special_tokens(SPECIAL_TOKENS)
+        num_added_tokens = self.tokenizer.add_special_tokens(ATTR_TO_SPECIAL_TOKEN)
         self.vocab_size = orig_vocab + num_added_tokens
 
         self.pad_index = self.tokenizer.pad_token_id
