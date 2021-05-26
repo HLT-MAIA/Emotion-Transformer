@@ -29,7 +29,7 @@ class Tokenizer(TextEncoder):
 
         self.pad_index = self.tokenizer.pad_token_id
         self.eos_index = self.tokenizer.eos_token_id
-        self.bos_index = self.tokenizer.eos_token_id
+        self.bos_index = self.tokenizer.cls_token_id
         self.vocab = self.tokenizer.get_vocab()
 
     def encode(self, sequence: str) -> torch.Tensor:
